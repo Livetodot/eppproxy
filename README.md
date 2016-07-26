@@ -20,6 +20,12 @@ tlsproxy -h
 A systemd unit file has been provided which can be used to run the service as
 a daemon. Edit this file to pass the arguments that you require to be passed.
 
+## Building
+
+```
+go build .
+```
+
 ## License
 
 This project is licensed under the MIT License. See the `LICENSE` file for
