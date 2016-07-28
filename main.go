@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sync"
@@ -20,18 +22,27 @@ var (
 func proxy(lconn, rconn net.Conn, wg sync.WaitGroup) {
 	defer wg.Done()
 
-	r := bufio.NewReader(lconn)
+	l := bufio.NewReader(lconn)
 
 	for {
-		// Read a line from lconn...
-		line, err := r.ReadString('\n')
+		p := make([]byte, 1024)
+		_, err := l.Read(p)
+		if err == io.EOF {
+			log.Printf("Remote host closed the connection %s", lconn.RemoteAddr())
+			return
+		}
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
-		// ...and write it to rconn...
-		n, err := rconn.Write([]byte(line))
+		p = bytes.Trim(p, "\x00")
+
+		n, err := rconn.Write(p)
+		if err == io.EOF {
+			log.Printf("Remote host closed the connection %s", rconn.RemoteAddr())
+			return
+		}
 		if err != nil {
 			log.Println(n, err)
 			return
