@@ -2,8 +2,9 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/tls"
+	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -19,42 +20,27 @@ var (
 	serverAddr string
 )
 
-func proxy(lconn, rconn net.Conn, wg sync.WaitGroup) {
+func proxy(lconn, rconn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	l := bufio.NewReader(lconn)
-
 	for {
-		p := make([]byte, 1024)
-		_, err := l.Read(p)
-		if err == io.EOF {
-			log.Printf("Remote host closed the connection %s", lconn.RemoteAddr())
-			return
-		}
+		p, err := readEPPFrame(lconn)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
-		p = bytes.Trim(p, "\x00")
-
-		n, err := rconn.Write(p)
-		if err == io.EOF {
-			log.Printf("Remote host closed the connection %s", rconn.RemoteAddr())
-			return
-		}
-		if err != nil {
-			log.Println(n, err)
-			return
-		}
+		writeEPPFrame(rconn, p)
 	}
 }
 
 func handleConn(lconn net.Conn) {
 	defer lconn.Close()
 
+	log.Printf("Accepted connection from %s", lconn.RemoteAddr())
+
 	// Dial out to the server we are proxying to
-	log.Println("Dialing out")
+	log.Printf("Dialing out to remote %s", serverAddr)
 	rconn, err := tls.Dial("tcp", serverAddr, &tls.Config{})
 	if err != nil {
 		log.Println(err)
@@ -64,17 +50,58 @@ func handleConn(lconn net.Conn) {
 
 	var wg sync.WaitGroup
 
-	// Run the proxy in both directions
-	wg.Add(2)
-	go proxy(lconn, rconn, wg)
-	go proxy(rconn, lconn, wg)
+	log.Printf("Starting proxy session between %s and %s", lconn.RemoteAddr(), rconn.RemoteAddr())
+	go proxy(lconn, rconn, &wg)
+	go proxy(rconn, lconn, &wg)
 
+	// Block until ONE of the goroutines ends
+	wg.Add(1)
 	wg.Wait()
+
+	// Add 1 to the wg so that when the other goroutine closes and decrements
+	// the wg we don't end with a negative wg count which causes a panic
+	wg.Add(1)
+
+	log.Printf("Dead connection, closing proxy session between %s and %s", lconn.RemoteAddr(), rconn.RemoteAddr())
+}
+
+func readEPPFrame(conn net.Conn) ([]byte, error) {
+	r := bufio.NewReader(conn)
+
+	// Read header
+	p := make([]byte, 4)
+	n, err := r.Read(p)
+
+	if err == io.EOF {
+		return []byte{}, errors.New(fmt.Sprintf("Remote host closed the connection %s", conn.RemoteAddr()))
+	}
+
+	if err != nil || n != 4 {
+		return []byte{}, errors.New(fmt.Sprintf("Error reading frame header from %s", conn.RemoteAddr()))
+	}
+
+	// Calculate content length
+	l := binary.BigEndian.Uint32(p) - 4
+
+	// Read content
+	p = make([]byte, l)
+	r.Read(p)
+
+	return p, nil
+}
+
+func writeEPPFrame(w net.Conn, c []byte) {
+	l := len(c) + 4
+	header := make([]byte, 4)
+	binary.BigEndian.PutUint32(header, uint32(l))
+
+	w.Write(header)
+	w.Write(c)
 }
 
 func main() {
 	flag.Parse()
-	fmt.Println("Listening now..")
+	log.Printf("Listening for connections on %s", listenAddr)
 
 	// Load our certificate details
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -96,7 +123,8 @@ func main() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
+			continue
 		}
 
 		go handleConn(conn)
