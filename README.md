@@ -1,9 +1,9 @@
-# tlsproxy
+# eppproxy
 
-`tlsproxy` will proxy an incoming TLS session to a server and pass the
-responses along. This is handy for doing version bumping, for instance a RHEL5
-client that needs to connect to a TLS1.1+ server can connect via this proxy
-running on a RHEL6+ server.
+`eppproxy` will proxy an incoming EPP connection to another server and pass the
+responses along. This is handy for doing TLS version bumping, for instance
+a RHEL5 client that needs to connect to a TLS1.1+ server can connect via this
+proxy running on a RHEL6+ server.
 
 ## Usage
 
@@ -12,7 +12,7 @@ Before running, you need to have a valid certificate. Use OpenSSL for this.
 **Interactively**
 
 ```
-tlsproxy -h
+eppproxy -h
 ```
 
 **Daemon**
