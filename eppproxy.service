@@ -5,6 +5,7 @@ After=network.target nss-lookup.target
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/eppproxy -cert /etc/eppproxy/cert.pem -key /etc/eppproxy/key.pem -server bbc.co.uk:443 -listen 0.0.0.0:9000
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
