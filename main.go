@@ -30,6 +30,8 @@ func proxy(lconn, rconn net.Conn, wg *sync.WaitGroup) {
 			return
 		}
 
+		log.Printf("Passing message: %s", p)
+
 		writeEPPFrame(rconn, p)
 	}
 }
