@@ -30,7 +30,7 @@ func proxy(lconn, rconn net.Conn, wg *sync.WaitGroup) {
 			return
 		}
 
-		log.Printf("Passing message: %s", p)
+		//log.Printf("Passing message: %s", p)
 
 		writeEPPFrame(rconn, p)
 	}
@@ -79,11 +79,17 @@ func readEPPFrame(conn net.Conn) ([]byte, error) {
 	}
 
 	if err != nil || n != 4 {
+		log.Printf("Header length: %d", n)
+		log.Printf("Header error: %s", err)
 		return []byte{}, errors.New(fmt.Sprintf("Error reading frame header from %s", conn.RemoteAddr()))
 	}
 
 	// Calculate content length
-	l := binary.BigEndian.Uint32(p) - 4
+	rawl := binary.BigEndian.Uint32(p)
+	log.Printf("Header stated content length: %d", rawl)
+
+	l := rawl - 4
+	log.Printf("Calculated content length: %d", l)
 
 	// Read content
 	p = make([]byte, l)
