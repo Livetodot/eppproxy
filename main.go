@@ -84,6 +84,8 @@ func readEPPFrame(conn net.Conn) ([]byte, error) {
 		return []byte{}, errors.New(fmt.Sprintf("Error reading frame header from %s", conn.RemoteAddr()))
 	}
 
+	log.Printf("Header raw content: %s", p)
+
 	// Calculate content length
 	rawl := binary.BigEndian.Uint32(p)
 	log.Printf("Header stated content length: %d", rawl)
