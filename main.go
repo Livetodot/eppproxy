@@ -1,12 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"crypto/tls"
-	"encoding/binary"
-	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -21,17 +17,18 @@ var (
 )
 
 func proxy(lconn, rconn net.Conn, wg *sync.WaitGroup) {
-	defer wg.Done()
 
-	for {
-		p, err := readEPPFrame(lconn)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		writeEPPFrame(rconn, p)
+	defer lconn.Close()
+	defer rconn.Close()
+	
+	// Copy data from source to destination
+	_, err := io.Copy(rconn, lconn)
+	
+	if err != nil {
+	  log.Printf("Error copying data: %s", err)
 	}
+
+	return
 }
 
 func handleConn(lconn net.Conn) {
@@ -63,40 +60,6 @@ func handleConn(lconn net.Conn) {
 	wg.Add(1)
 
 	log.Printf("Dead connection, closing proxy session between %s and %s", lconn.RemoteAddr(), rconn.RemoteAddr())
-}
-
-func readEPPFrame(conn net.Conn) ([]byte, error) {
-	r := bufio.NewReader(conn)
-
-	// Read header
-	p := make([]byte, 4)
-	n, err := r.Read(p)
-
-	if err == io.EOF {
-		return []byte{}, errors.New(fmt.Sprintf("Remote host closed the connection %s", conn.RemoteAddr()))
-	}
-
-	if err != nil || n != 4 {
-		return []byte{}, errors.New(fmt.Sprintf("Error reading frame header from %s", conn.RemoteAddr()))
-	}
-
-	// Calculate content length
-	l := binary.BigEndian.Uint32(p) - 4
-
-	// Read content
-	p = make([]byte, l)
-	r.Read(p)
-
-	return p, nil
-}
-
-func writeEPPFrame(w net.Conn, c []byte) {
-	l := len(c) + 4
-	header := make([]byte, 4)
-	binary.BigEndian.PutUint32(header, uint32(l))
-
-	w.Write(header)
-	w.Write(c)
 }
 
 func main() {
