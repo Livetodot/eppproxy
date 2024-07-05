@@ -30,3 +30,7 @@ go build .
 
 This project is licensed under the MIT License. See the `LICENSE` file for
 details.
+
+## Note
+
+There is a simple TLS proxy, with no EPP specific logic, in the `tls-generic-proxy` branch.
